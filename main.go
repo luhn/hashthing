@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"io/ioutil"
 	"crypto/md5"
+	"encoding/json"
 )
 
 func main() {
@@ -19,8 +20,8 @@ func main() {
 
 	files := walk(src)
 	queue := NewQueue(files)
-	processQueue(src, dst, queue)
-	// fmt.Println(files)
+	processed := processQueue(src, dst, queue)
+	writeManifest(dst, processed)
 }
 
 func walk(src string) []File {
@@ -53,18 +54,19 @@ func walk(src string) []File {
 	return files
 }
 
-func processQueue(src string, dst string, files FileQueue) {
+func processQueue(src string, dst string, files FileQueue) map[string]string {
+	processed := make(map[string]string)
 	for !files.Empty() {
 		file := files.Pop()
 		if len(file.replacements) > 0 {
 			panic("We don't support replacements yet!")
 		}
-		fmt.Println(file)
-		processFile(src, dst, file)
+		processed[file.path] = processFile(src, dst, file)
 	}
+	return processed
 }
 
-func processFile(src string, dst string, file File) {
+func processFile(src string, dst string, file File) string {
 	// Read the file
 	data, err := ioutil.ReadFile(filepath.Join(src, file.path))
 	if err != nil {
@@ -72,19 +74,20 @@ func processFile(src string, dst string, file File) {
 	}
 
 	// Create the new name
-	dir, fn := filepath.Split(filepath.Join(dst, file.path))
+	dir, fn := filepath.Split(file.path)
 	hash := fmt.Sprintf("%x", md5.Sum(data))[:8]
-	dstPath := filepath.Join(dir, createFilename(fn, hash))
+	newPath := filepath.Join(dir, createFilename(fn, hash))
 
 	// Write the file
-	err = os.MkdirAll(dir, 0755)
+	err = os.MkdirAll(filepath.Join(dst, dir), 0755)
 	if err != nil {
 		panic(err)
 	}
-	err = ioutil.WriteFile(dstPath, data, 0644)
+	err = ioutil.WriteFile(filepath.Join(dst, newPath), data, 0644)
 	if err != nil {
 		panic(err)
 	}
+	return newPath
 }
 
 func createFilename(fn string, hash string) string {
@@ -93,6 +96,15 @@ func createFilename(fn string, hash string) string {
 	copy(newFn, fnSplit[:len(fnSplit) - 1])
 	newFn = append(newFn, hash, fnSplit[len(fnSplit) - 1])
 	return strings.Join(newFn, ".")
+}
+
+func writeManifest(src string, processed map[string]string) {
+	fn := filepath.Join(src, "manifest.json")
+	contents, err := json.MarshalIndent(processed, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	ioutil.WriteFile(fn, contents, 0644)
 }
 
 type File struct {
