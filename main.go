@@ -19,13 +19,12 @@ func main() {
 	dst := os.Args[2]
 
 	files := walk(src)
-	queue := NewQueue(files)
-	processed := processQueue(src, dst, queue)
-	writeManifest(dst, processed)
+	processFiles(src, dst, files)
+	writeManifest(dst, files)
 }
 
-func walk(src string) []File {
-	files := make([]File, 0, 256)
+func walk(src string) map[string]File {
+	files := make(map[string]File)
 	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		relpath, err := filepath.Rel(src, path)
 		if err != nil {
@@ -48,25 +47,22 @@ func walk(src string) []File {
 		}
 
 		// Add to queue
-		files = append(files, File{relpath, nil})
+		files[relpath] = File{relpath, "", nil}
 		return nil
 	})
 	return files
 }
 
-func processQueue(src string, dst string, files FileQueue) map[string]string {
-	processed := make(map[string]string)
-	for !files.Empty() {
-		file := files.Pop()
+func processFiles(src string, dst string, files map[string]File) {
+	for _, file := range files {
 		if len(file.replacements) > 0 {
 			panic("We don't support replacements yet!")
 		}
-		processed[file.path] = processFile(src, dst, file)
+		processFile(src, dst, file)
 	}
-	return processed
 }
 
-func processFile(src string, dst string, file File) string {
+func processFile(src string, dst string, file File) {
 	// Read the file
 	data, err := ioutil.ReadFile(filepath.Join(src, file.path))
 	if err != nil {
@@ -76,18 +72,17 @@ func processFile(src string, dst string, file File) string {
 	// Create the new name
 	dir, fn := filepath.Split(file.path)
 	hash := fmt.Sprintf("%x", md5.Sum(data))[:8]
-	newPath := filepath.Join(dir, createFilename(fn, hash))
+	file.hashedPath = filepath.Join(dir, createFilename(fn, hash))
 
 	// Write the file
 	err = os.MkdirAll(filepath.Join(dst, dir), 0755)
 	if err != nil {
 		panic(err)
 	}
-	err = ioutil.WriteFile(filepath.Join(dst, newPath), data, 0644)
+	err = ioutil.WriteFile(filepath.Join(dst, file.hashedPath), data, 0644)
 	if err != nil {
 		panic(err)
 	}
-	return newPath
 }
 
 func createFilename(fn string, hash string) string {
@@ -98,9 +93,13 @@ func createFilename(fn string, hash string) string {
 	return strings.Join(newFn, ".")
 }
 
-func writeManifest(src string, processed map[string]string) {
+func writeManifest(src string, files map[string]File) {
+	manifest := make(map[string]string)
+	for _, file := range files {
+		manifest[file.path] = file.hashedPath
+	}
 	fn := filepath.Join(src, "manifest.json")
-	contents, err := json.MarshalIndent(processed, "", "  ")
+	contents, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		panic(err)
 	}
@@ -109,6 +108,7 @@ func writeManifest(src string, processed map[string]string) {
 
 type File struct {
 	path string
+	hashedPath string
 	replacements []Replacement
 }
 
