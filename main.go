@@ -23,8 +23,8 @@ func main() {
 	writeManifest(dst, files)
 }
 
-func walk(src string) map[string]File {
-	files := make(map[string]File)
+func walk(src string) map[string]*File {
+	files := make(map[string]*File)
 	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		relpath, err := filepath.Rel(src, path)
 		if err != nil {
@@ -47,22 +47,57 @@ func walk(src string) map[string]File {
 		}
 
 		// Add to queue
-		files[relpath] = File{relpath, "", nil}
+		ext := filepath.Ext(path)
+		if ext == ".css" {
+			file := processCSS(src, relpath)
+			files[relpath] = &file
+		} else {
+			files[relpath] = &File{relpath, "", nil}
+		}
 		return nil
 	})
 	return files
 }
 
-func processFiles(src string, dst string, files map[string]File) {
-	for _, file := range files {
-		if len(file.replacements) > 0 {
-			panic("We don't support replacements yet!")
+func processFiles(src string, dst string, files map[string]*File) {
+	for {
+		processed := 0
+		for _, file := range files {
+			fmt.Println(file.hashedPath)
+			if file.hashedPath == "" && isReady(*file, files) {
+				processFile(src, dst, file)
+				processed += 1
+				fmt.Println(file.hashedPath)
+			}
 		}
-		processFile(src, dst, file)
+		if processed == 0 {
+			break
+		}
 	}
 }
 
-func processFile(src string, dst string, file File) {
+func isReady(file File, files map[string]*File) bool {
+	if file.replacements == nil {
+		return true
+	}
+	for _, replacement := range file.replacements {
+		ref, ok := files[replacement.path]
+		if !ok {
+			fmt.Println(
+				"Non-existant file `%s` referenced in `%s`",
+				replacement.path,
+				file.path,
+			)
+			panic("omg")
+		}
+		if ref.hashedPath == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func processFile(src string, dst string, file *File) {
 	// Read the file
 	data, err := ioutil.ReadFile(filepath.Join(src, file.path))
 	if err != nil {
@@ -93,7 +128,7 @@ func createFilename(fn string, hash string) string {
 	return strings.Join(newFn, ".")
 }
 
-func writeManifest(src string, files map[string]File) {
+func writeManifest(src string, files map[string]*File) {
 	manifest := make(map[string]string)
 	for _, file := range files {
 		manifest[file.path] = file.hashedPath
