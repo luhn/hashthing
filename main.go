@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
+	// "bytes"
 	"fmt"
 	"strings"
 	"os"
 	"path/filepath"
+	"io"
 	"io/ioutil"
 	"crypto/md5"
 	"encoding/json"
@@ -63,11 +66,9 @@ func processFiles(src string, dst string, files map[string]*File) {
 	for {
 		processed := 0
 		for _, file := range files {
-			fmt.Println(file.hashedPath)
 			if file.hashedPath == "" && isReady(*file, files) {
-				processFile(src, dst, file)
+				processFile(src, dst, file, files)
 				processed += 1
-				fmt.Println(file.hashedPath)
 			}
 		}
 		if processed == 0 {
@@ -97,27 +98,85 @@ func isReady(file File, files map[string]*File) bool {
 	return true
 }
 
-func processFile(src string, dst string, file *File) {
+func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	// Read the file
+	/*
 	data, err := ioutil.ReadFile(filepath.Join(src, file.path))
 	if err != nil {
 		panic(err)
 	}
+	*/
+	fmt.Println("Processing %s", file.path)
 
-	// Create the new name
+	// Open file for reading
+	srcFile, err := os.Open(filepath.Join(src, file.path))
+	if err != nil {
+		panic(err)
+	}
+	defer srcFile.Close()
+	reader := bufio.NewReader(srcFile)
+
+	// Open temp file for writing
+	dstFile, err := ioutil.TempFile("", "hashthing")
+	if err != nil {
+		panic(err)
+	}
+	dstBuffer := bufio.NewWriter(dstFile)
+
+	// Create hash
+	hash := md5.New()
+	writer := io.MultiWriter(hash, dstBuffer)
+
+	if file.replacements != nil {
+		lastPosition := 0
+		for _, replacement := range file.replacements {
+			toRead := replacement.position - lastPosition
+			io.CopyN(writer, reader, int64(toRead))
+			reader.Discard(replacement.length)
+			lastPosition = replacement.position + replacement.length
+
+			refFile := filemap[replacement.path]
+			_, err := io.WriteString(writer, refFile.hashedPath)
+			if err != nil {
+				panic(err)
+			}
+		}
+		// io.Copy(writer, reader)
+	}
+	_, err = io.Copy(writer, reader)
+	if err != nil {
+		panic(err)
+	}
+	err = srcFile.Close()
+	if err != nil {
+		panic(err)
+	}
+	err = dstBuffer.Flush()
+	if err != nil {
+		panic(err)
+	}
+	err = dstFile.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	// Create hashed filename
 	dir, fn := filepath.Split(file.path)
-	hash := fmt.Sprintf("%x", md5.Sum(data))[:8]
-	file.hashedPath = filepath.Join(dir, createFilename(fn, hash))
+	hashString := fmt.Sprintf("%x", hash.Sum(nil))[:8]
+	file.hashedPath = filepath.Join(dir, createFilename(fn, hashString))
 
 	// Write the file
 	err = os.MkdirAll(filepath.Join(dst, dir), 0755)
 	if err != nil {
 		panic(err)
 	}
+	os.Rename(dstFile.Name(), filepath.Join(dst, file.hashedPath))
+	/*
 	err = ioutil.WriteFile(filepath.Join(dst, file.hashedPath), data, 0644)
 	if err != nil {
 		panic(err)
 	}
+	*/
 }
 
 func createFilename(fn string, hash string) string {

@@ -20,7 +20,6 @@ func processCSS(src string, path string) File {
 	}
 	defer fh.Close()
 	reader := bufio.NewReader(fh)
-	fmt.Println("Searching file.")
 
 	// Scan
 	pos := 0
@@ -38,16 +37,14 @@ func processCSS(src string, path string) File {
 				}
 			}
 			if bytes.Compare(b, []byte("url(")) == 0 {
-				fmt.Println("Found a URL!")
-				offset, relpath := readURL(reader)
-				relpath, err = filepath.Rel(src, filepath.Join(dir, relpath))
+				offset, rawpath := readURL(reader)
+				relpath, err := filepath.Rel(src, filepath.Join(dir, rawpath))
 				if err != nil {
 					panic(err)
 				}
-				fmt.Println(relpath)
 				replacements = append(replacements, Replacement{
 					position: pos + offset,
-					length: len(path),
+					length: len(rawpath),
 					path: relpath,
 				})
 				pos += offset + len(path)
