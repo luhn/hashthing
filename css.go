@@ -12,9 +12,9 @@ import (
 
 // PATTERN = regexp.MustCompile("url")
 
-func processCSS(path string) []Replacement {
+func processCSS(fullpath string, path string) []Replacement {
 	dir := filepath.Dir(path)
-	fh, err := os.Open(path)
+	fh, err := os.Open(fullpath)
 	if err != nil {
 		panic(err)
 	}

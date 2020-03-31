@@ -47,16 +47,20 @@ func walk(src string) map[string]*File {
 		if file[0] == "."[0] {
 			return nil
 		}
-
 		// Add to queue
+		relpath, err := filepath.Rel(src, path)
+		if err != nil {
+			panic(err)
+		}
 		ext := filepath.Ext(path)
 		var replacements []Replacement
 		if ext == ".css" {
-			replacements = processCSS(path)
+			replacements = processCSS(path, relpath)
 		} else {
 			replacements = []Replacement{}
 		}
-		files[path] = &File{path, "", replacements}
+		fmt.Println(relpath)
+		files[relpath] = &File{relpath, "", replacements}
 		return nil
 	})
 	return files
@@ -101,7 +105,7 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	dir, fn := filepath.Split(file.path)
 
 	// Open file for reading
-	srcFile, err := os.Open(file.path)
+	srcFile, err := os.Open(filepath.Join(src, file.path))
 	if err != nil {
 		panic(err)
 	}
@@ -159,8 +163,7 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	file.hashedPath = filepath.Join(dir, createFilename(fn, hashString))
 
 	// Write the file
-	relpath, err := filepath.Rel(src, file.hashedPath)
-	dstFn := filepath.Join(dst, relpath)
+	dstFn := filepath.Join(dst, file.hashedPath)
 	fmt.Println(dstFn)
 	if err != nil {
 		panic(err)
