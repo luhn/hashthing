@@ -12,7 +12,7 @@ import (
 
 // PATTERN = regexp.MustCompile("url")
 
-func processCSS(path string) File {
+func processCSS(path string) []Replacement {
 	dir := filepath.Dir(path)
 	fh, err := os.Open(path)
 	if err != nil {
@@ -51,7 +51,7 @@ func processCSS(path string) File {
 			}
 		}
 	}
-	return File{path, "", replacements}
+	return replacements
 }
 
 func readURL(reader *bufio.Reader) (int, string) {

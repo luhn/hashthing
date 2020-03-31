@@ -50,12 +50,13 @@ func walk(src string) map[string]*File {
 
 		// Add to queue
 		ext := filepath.Ext(path)
+		var replacements []Replacement
 		if ext == ".css" {
-			file := processCSS(path)
-			files[path] = &file
+			replacements = processCSS(path)
 		} else {
-			files[path] = &File{path, "", nil}
+			replacements = []Replacement{}
 		}
+		files[path] = &File{path, "", replacements}
 		return nil
 	})
 	return files
@@ -77,9 +78,6 @@ func processFiles(src string, dst string, files map[string]*File) {
 }
 
 func isReady(file File, files map[string]*File) bool {
-	if file.replacements == nil {
-		return true
-	}
 	for _, replacement := range file.replacements {
 		ref, ok := files[replacement.path]
 		if !ok {
@@ -121,26 +119,23 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	hash := md5.New()
 	writer := io.MultiWriter(hash, dstBuffer)
 
-	if file.replacements != nil {
-		lastPosition := 0
-		for _, replacement := range file.replacements {
-			toRead := replacement.position - lastPosition
-			io.CopyN(writer, reader, int64(toRead))
-			reader.Discard(replacement.length)
-			lastPosition = replacement.position + replacement.length
+	lastPosition := 0
+	for _, replacement := range file.replacements {
+		toRead := replacement.position - lastPosition
+		io.CopyN(writer, reader, int64(toRead))
+		reader.Discard(replacement.length)
+		lastPosition = replacement.position + replacement.length
 
-			refFile := filemap[replacement.path]
-			whatever, err := filepath.Rel(dir, refFile.hashedPath)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println(whatever)
-			_, err = io.WriteString(writer, whatever)
-			if err != nil {
-				panic(err)
-			}
+		refFile := filemap[replacement.path]
+		whatever, err := filepath.Rel(dir, refFile.hashedPath)
+		if err != nil {
+			panic(err)
 		}
-		// io.Copy(writer, reader)
+		fmt.Println(whatever)
+		_, err = io.WriteString(writer, whatever)
+		if err != nil {
+			panic(err)
+		}
 	}
 	_, err = io.Copy(writer, reader)
 	if err != nil {
