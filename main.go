@@ -29,7 +29,6 @@ func main() {
 func walk(src string) map[string]*File {
 	files := make(map[string]*File)
 	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		relpath, err := filepath.Rel(src, path)
 		if err != nil {
 			panic(err)
 		}
@@ -44,7 +43,7 @@ func walk(src string) map[string]*File {
 		}
 
 		// Ignore dotted files
-		_, file := filepath.Split(relpath)
+		_, file := filepath.Split(path)
 		if file[0] == "."[0] {
 			return nil
 		}
@@ -52,10 +51,10 @@ func walk(src string) map[string]*File {
 		// Add to queue
 		ext := filepath.Ext(path)
 		if ext == ".css" {
-			file := processCSS(src, relpath)
-			files[relpath] = &file
+			file := processCSS(path)
+			files[path] = &file
 		} else {
-			files[relpath] = &File{relpath, "", nil}
+			files[path] = &File{path, "", nil}
 		}
 		return nil
 	})
@@ -100,16 +99,11 @@ func isReady(file File, files map[string]*File) bool {
 
 func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	// Read the file
-	/*
-	data, err := ioutil.ReadFile(filepath.Join(src, file.path))
-	if err != nil {
-		panic(err)
-	}
-	*/
 	fmt.Println("Processing %s", file.path)
+	dir, fn := filepath.Split(file.path)
 
 	// Open file for reading
-	srcFile, err := os.Open(filepath.Join(src, file.path))
+	srcFile, err := os.Open(file.path)
 	if err != nil {
 		panic(err)
 	}
@@ -136,7 +130,12 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 			lastPosition = replacement.position + replacement.length
 
 			refFile := filemap[replacement.path]
-			_, err := io.WriteString(writer, refFile.hashedPath)
+			whatever, err := filepath.Rel(dir, refFile.hashedPath)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(whatever)
+			_, err = io.WriteString(writer, whatever)
 			if err != nil {
 				panic(err)
 			}
@@ -161,22 +160,21 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	}
 
 	// Create hashed filename
-	dir, fn := filepath.Split(file.path)
 	hashString := fmt.Sprintf("%x", hash.Sum(nil))[:8]
 	file.hashedPath = filepath.Join(dir, createFilename(fn, hashString))
 
 	// Write the file
-	err = os.MkdirAll(filepath.Join(dst, dir), 0755)
+	relpath, err := filepath.Rel(src, file.hashedPath)
+	dstFn := filepath.Join(dst, relpath)
+	fmt.Println(dstFn)
 	if err != nil {
 		panic(err)
 	}
-	os.Rename(dstFile.Name(), filepath.Join(dst, file.hashedPath))
-	/*
-	err = ioutil.WriteFile(filepath.Join(dst, file.hashedPath), data, 0644)
+	err = os.MkdirAll(filepath.Dir(dstFn), 0755)
 	if err != nil {
 		panic(err)
 	}
-	*/
+	os.Rename(dstFile.Name(), dstFn)
 }
 
 func createFilename(fn string, hash string) string {

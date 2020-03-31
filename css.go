@@ -12,9 +12,9 @@ import (
 
 // PATTERN = regexp.MustCompile("url")
 
-func processCSS(src string, path string) File {
-	dir := filepath.Dir(filepath.Join(src, path))
-	fh, err := os.Open(filepath.Join(src, path))
+func processCSS(path string) File {
+	dir := filepath.Dir(path)
+	fh, err := os.Open(path)
 	if err != nil {
 		panic(err)
 	}
@@ -38,10 +38,7 @@ func processCSS(src string, path string) File {
 			}
 			if bytes.Compare(b, []byte("url(")) == 0 {
 				offset, rawpath := readURL(reader)
-				relpath, err := filepath.Rel(src, filepath.Join(dir, rawpath))
-				if err != nil {
-					panic(err)
-				}
+				relpath := filepath.Join(dir, rawpath)
 				replacements = append(replacements, Replacement{
 					position: pos + offset,
 					length: len(rawpath),
