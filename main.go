@@ -21,13 +21,34 @@ func main() {
 	src := os.Args[1]
 	dst := os.Args[2]
 
-	files := walk(src)
+	files := createFileMap(src)
 	processFiles(src, dst, files)
 	writeManifest(dst, files)
 }
 
-func walk(src string) map[string]*File {
+func createFileMap(src string) map[string]*File {
 	files := make(map[string]*File)
+	for _, path := range walk(src) {
+		// Add to queue
+		relpath, err := filepath.Rel(src, path)
+		if err != nil {
+			panic(err)
+		}
+		ext := filepath.Ext(path)
+		var replacements []Replacement
+		if ext == ".css" {
+			replacements = processCSS(path, relpath)
+		} else {
+			replacements = []Replacement{}
+		}
+		fmt.Println(relpath)
+		files[relpath] = &File{relpath, "", replacements}
+	}
+	return files
+}
+
+func walk(src string) []string {
+	files := []string{}
 	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			panic(err)
@@ -47,20 +68,8 @@ func walk(src string) map[string]*File {
 		if file[0] == "."[0] {
 			return nil
 		}
-		// Add to queue
-		relpath, err := filepath.Rel(src, path)
-		if err != nil {
-			panic(err)
-		}
-		ext := filepath.Ext(path)
-		var replacements []Replacement
-		if ext == ".css" {
-			replacements = processCSS(path, relpath)
-		} else {
-			replacements = []Replacement{}
-		}
-		fmt.Println(relpath)
-		files[relpath] = &File{relpath, "", replacements}
+
+		files = append(files, path)
 		return nil
 	})
 	return files
@@ -123,28 +132,8 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	hash := md5.New()
 	writer := io.MultiWriter(hash, dstBuffer)
 
-	lastPosition := 0
-	for _, replacement := range file.replacements {
-		toRead := replacement.position - lastPosition
-		io.CopyN(writer, reader, int64(toRead))
-		reader.Discard(replacement.length)
-		lastPosition = replacement.position + replacement.length
+	performReplacements(writer, reader, file, filemap)
 
-		refFile := filemap[replacement.path]
-		whatever, err := filepath.Rel(dir, refFile.hashedPath)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(whatever)
-		_, err = io.WriteString(writer, whatever)
-		if err != nil {
-			panic(err)
-		}
-	}
-	_, err = io.Copy(writer, reader)
-	if err != nil {
-		panic(err)
-	}
 	err = srcFile.Close()
 	if err != nil {
 		panic(err)
@@ -173,6 +162,34 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 		panic(err)
 	}
 	os.Rename(dstFile.Name(), dstFn)
+}
+
+func performReplacements(writer io.Writer, reader io.Reader, file *File, filemap map[string]*File) {
+	dir, _ := filepath.Split(file.path)
+	lastPosition := 0
+	for _, replacement := range file.replacements {
+		toRead := replacement.position - lastPosition
+		io.CopyN(writer, reader, int64(toRead))
+		_, err := reader.Read(make([]byte, replacement.length))
+		if err != nil {
+			panic(err)
+		}
+		lastPosition = replacement.position + replacement.length
+
+		refFile := filemap[replacement.path]
+		refPath, err := filepath.Rel(dir, refFile.hashedPath)
+		if err != nil {
+			panic(err)
+		}
+		_, err = io.WriteString(writer, refPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+	_, err := io.Copy(writer, reader)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func createFilename(fn string, hash string) string {
