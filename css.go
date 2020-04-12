@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"fmt"
 	"bytes"
 	"path/filepath"
 	"bufio"
@@ -73,7 +72,6 @@ func readURL(reader *bufio.Reader) (int, string) {
 		return !byteInArray(b, ENDCHARS)
 	})
 
-	fmt.Println("Character %s", string(path))
 	return offset, string(path)
 }
 

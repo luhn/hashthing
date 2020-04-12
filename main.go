@@ -19,32 +19,19 @@ func main() {
 		os.Exit(1)
 	}
 	src := os.Args[1]
-	dst := os.Args[2]
+	// dst := os.Args[2]
 
-	files := createFileMap(src)
-	processFiles(src, dst, files)
-	writeManifest(dst, files)
-}
-
-func createFileMap(src string) map[string]*File {
-	files := make(map[string]*File)
-	for _, path := range walk(src) {
-		// Add to queue
-		relpath, err := filepath.Rel(src, path)
-		if err != nil {
-			panic(err)
+	filepaths := walk(src)
+	files := parseFiles(src, filepaths)
+	files = validateReplacements(files)
+	for _, file := range files {
+		fmt.Println(file.path)
+		for _, replacement := range file.replacements {
+			fmt.Println("- ", replacement.path)
 		}
-		ext := filepath.Ext(path)
-		var replacements []Replacement
-		if ext == ".css" {
-			replacements = processCSS(path, relpath)
-		} else {
-			replacements = []Replacement{}
-		}
-		fmt.Println(relpath)
-		files[relpath] = &File{relpath, "", replacements}
 	}
-	return files
+	// processFiles(src, dst, files)
+	// writeManifest(dst, files)
 }
 
 func walk(src string) []string {
@@ -72,6 +59,54 @@ func walk(src string) []string {
 		files = append(files, path)
 		return nil
 	})
+	return files
+}
+
+func parseFiles(src string, paths []string) []File {
+	files := []File{}
+	for _, path := range paths {
+		// Add to queue
+		relpath, err := filepath.Rel(src, path)
+		if err != nil {
+			panic(err)
+		}
+		ext := filepath.Ext(path)
+		var replacements []Replacement
+		if ext == ".css" {
+			replacements = processCSS(path, relpath)
+		} else {
+			replacements = []Replacement{}
+		}
+		files = append(files, File{relpath, "", replacements})
+	}
+	return files
+}
+
+func validateReplacements(files []File) []File {
+	// Construct a set of file paths
+	paths := make(map[string]bool)
+	for _, file := range files {
+		paths[file.path] = true
+	}
+
+	// Loop through files, remove any non-resolving replacements
+	for i, file := range files {
+		newReplacements := []Replacement{}
+		for _, replacement := range file.replacements {
+			_, ok := paths[replacement.path]
+			if ok {
+				newReplacements = append(newReplacements, replacement)
+			} else {
+				fmt.Printf(
+					"Warning: `%s` references nonexistant path `%s`\n",
+					file.path,
+					replacement.path,
+				)
+			}
+		}
+		file.replacements = newReplacements
+		files[i] = file
+	}
 	return files
 }
 
