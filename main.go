@@ -19,7 +19,7 @@ func main() {
 		os.Exit(1)
 	}
 	src := os.Args[1]
-	// dst := os.Args[2]
+	dst := os.Args[2]
 
 	filepaths := walk(src)
 	files := parseFiles(src, filepaths)
@@ -30,8 +30,8 @@ func main() {
 			fmt.Println("- ", replacement.path)
 		}
 	}
-	// processFiles(src, dst, files)
-	// writeManifest(dst, files)
+	processed := processFiles(src, dst, files)
+	writeManifest(processed)
 }
 
 func walk(src string) []string {
@@ -110,40 +110,31 @@ func validateReplacements(files []File) []File {
 	return files
 }
 
-func processFiles(src string, dst string, files map[string]*File) {
-	for {
-		processed := 0
-		for _, file := range files {
-			if file.hashedPath == "" && isReady(*file, files) {
-				processFile(src, dst, file, files)
-				processed += 1
-			}
-		}
-		if processed == 0 {
-			break
+func processFiles(src string, dst string, files []File) map[string]string {
+	processed := make(map[string]string)
+	for len(files) > 0 {
+		var file File
+		file, files = files[len(files)-1], files[:len(files)-1]
+		if isReady(file, processed) {
+			processed[file.path] = processFile(src, dst, file, processed)
+		} else {
+			files = append(files, file)
 		}
 	}
+	return processed
 }
 
-func isReady(file File, files map[string]*File) bool {
+func isReady(file File, processed map[string]string) bool {
 	for _, replacement := range file.replacements {
-		ref, ok := files[replacement.path]
+		_, ok := processed[replacement.path]
 		if !ok {
-			fmt.Println(
-				"Non-existant file `%s` referenced in `%s`",
-				replacement.path,
-				file.path,
-			)
-			panic("omg")
-		}
-		if ref.hashedPath == "" {
 			return false
 		}
 	}
 	return true
 }
 
-func processFile(src string, dst string, file *File, filemap map[string]*File) {
+func processFile(src string, dst string, file File, filemap map[string]string) string {
 	// Read the file
 	fmt.Println("Processing %s", file.path)
 	dir, fn := filepath.Split(file.path)
@@ -183,23 +174,20 @@ func processFile(src string, dst string, file *File, filemap map[string]*File) {
 	}
 
 	// Create hashed filename
-	hashString := fmt.Sprintf("%x", hash.Sum(nil))[:8]
-	file.hashedPath = filepath.Join(dir, createFilename(fn, hashString))
+	hashedPath := filepath.Join(dir, createHashedFilename(fn, hash.Sum(nil)))
 
-	// Write the file
-	dstFn := filepath.Join(dst, file.hashedPath)
-	fmt.Println(dstFn)
+	// Move to final home
+	dstPath := filepath.Join(dst, hashedPath)
+	err = os.MkdirAll(filepath.Dir(dstPath), 0755)
 	if err != nil {
 		panic(err)
 	}
-	err = os.MkdirAll(filepath.Dir(dstFn), 0755)
-	if err != nil {
-		panic(err)
-	}
-	os.Rename(dstFile.Name(), dstFn)
+	os.Rename(dstFile.Name(), dstPath)
+
+	return hashedPath
 }
 
-func performReplacements(writer io.Writer, reader io.Reader, file *File, filemap map[string]*File) {
+func performReplacements(writer io.Writer, reader io.Reader, file File, filemap map[string]string) {
 	dir, _ := filepath.Split(file.path)
 	lastPosition := 0
 	for _, replacement := range file.replacements {
@@ -212,7 +200,7 @@ func performReplacements(writer io.Writer, reader io.Reader, file *File, filemap
 		lastPosition = replacement.position + replacement.length
 
 		refFile := filemap[replacement.path]
-		refPath, err := filepath.Rel(dir, refFile.hashedPath)
+		refPath, err := filepath.Rel(dir, refFile)
 		if err != nil {
 			panic(err)
 		}
@@ -227,25 +215,21 @@ func performReplacements(writer io.Writer, reader io.Reader, file *File, filemap
 	}
 }
 
-func createFilename(fn string, hash string) string {
+func createHashedFilename(fn string, hash []byte) string {
+	hashString := fmt.Sprintf("%x", hash)[:8]
 	fnSplit := strings.Split(fn, ".")
 	newFn := make([]string, len(fnSplit) - 1, len(fnSplit) + 1)
 	copy(newFn, fnSplit[:len(fnSplit) - 1])
-	newFn = append(newFn, hash, fnSplit[len(fnSplit) - 1])
+	newFn = append(newFn, hashString, fnSplit[len(fnSplit) - 1])
 	return strings.Join(newFn, ".")
 }
 
-func writeManifest(src string, files map[string]*File) {
-	manifest := make(map[string]string)
-	for _, file := range files {
-		manifest[file.path] = file.hashedPath
-	}
-	fn := filepath.Join(src, "manifest.json")
-	contents, err := json.MarshalIndent(manifest, "", "  ")
+func writeManifest(filemap map[string]string) {
+	contents, err := json.MarshalIndent(filemap, "", "  ")
 	if err != nil {
 		panic(err)
 	}
-	ioutil.WriteFile(fn, contents, 0644)
+	ioutil.WriteFile("manifest.json", contents, 0644)
 }
 
 type File struct {
