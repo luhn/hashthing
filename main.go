@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	// "bytes"
+	"flag"
 	"fmt"
 	"strings"
 	"os"
@@ -14,12 +15,34 @@ import (
 )
 
 func main() {
-	if len(os.Args) <= 2 {
+	manifest := flag.String(
+		"manifest",
+		"manifest.json",
+		"The file path to output the JSON manifest file.",
+	)
+	flag.Usage = func() {
+		fmt.Print(
+			"Usage: hashthing [options] src dst\n\n" +
+			"Hashthing will recursively iterate through `src`, append a hash of " +
+			"the file to the filename, and copy to `dst`.  Relative paths in CSS " +
+			"documents will be rewritten to include the hash.\n\n" +
+			"`src` and `dst` should be directories.  If `dst` does not exist, it " +
+			"will be created.\n\n" +
+			"For more information, visit https://github.com/luhn/hashthing\n\n")
+		fmt.Println("Options:")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	if flag.NArg() < 2 {
 		fmt.Println("Must include source and destination directories.")
 		os.Exit(1)
+	} else if flag.NArg() > 2 {
+		fmt.Printf("Expected 2 arguments, received %d.\n", flag.NArg())
+		os.Exit(1)
 	}
-	src := os.Args[1]
-	dst := os.Args[2]
+	src := flag.Arg(0)
+	dst := flag.Arg(1)
 
 	filepaths := walk(src)
 	files := parseFiles(src, filepaths)
@@ -31,7 +54,7 @@ func main() {
 		}
 	}
 	processed := processFiles(src, dst, files)
-	writeManifest(processed)
+	writeManifest(*manifest, processed)
 }
 
 func walk(src string) []string {
@@ -224,12 +247,12 @@ func createHashedFilename(fn string, hash []byte) string {
 	return strings.Join(newFn, ".")
 }
 
-func writeManifest(filemap map[string]string) {
+func writeManifest(path string, filemap map[string]string) {
 	contents, err := json.MarshalIndent(filemap, "", "  ")
 	if err != nil {
 		panic(err)
 	}
-	ioutil.WriteFile("manifest.json", contents, 0644)
+	ioutil.WriteFile(path, contents, 0644)
 }
 
 type File struct {
