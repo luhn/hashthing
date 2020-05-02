@@ -2,4 +2,6 @@
 body {
 	background:url("selfportrait.jpg");
 	background:url("notthere.jpg");
+	background:url("/notthere.jpg");
+	background:url("https://example.com/external.jpg");
 }

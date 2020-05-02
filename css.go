@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"os"
 	"bytes"
 	"path/filepath"
@@ -37,13 +38,15 @@ func processCSS(fullpath string, path string) []Replacement {
 			}
 			if bytes.Compare(b, []byte("url(")) == 0 {
 				offset, rawpath := readURL(reader)
-				relpath := filepath.Join(dir, rawpath)
-				replacements = append(replacements, Replacement{
-					position: pos + offset,
-					length: len(rawpath),
-					path: relpath,
-				})
-				pos += offset + len(path)
+				if isValidPath(rawpath) {
+					relpath := filepath.Join(dir, rawpath)
+					replacements = append(replacements, Replacement{
+						position: pos + offset,
+						length: len(rawpath),
+						path: relpath,
+					})
+					pos += offset + len(path)
+				}
 			} else {
 				reader.Discard(1)
 				pos += 1
@@ -74,6 +77,21 @@ func readURL(reader *bufio.Reader) (int, string) {
 
 	return offset, string(path)
 }
+
+func isValidPath(path string) bool {
+	// No absolute paths
+	if path[0:1] == "/" {
+		return false
+	}
+	// No URLs
+	if strings.Contains(path, "://") {
+		return false
+	}
+	// Otherwise okay
+	return true
+}
+
+// Util functions for parsing file
 
 func byteInArray(needle byte, haystack []byte) bool {
 	for _, b := range haystack {
