@@ -7,7 +7,6 @@ RUN go get -d -v
 RUN go install -v
 
 # Copy over to empty image
-FROM alpine
+FROM scratch
 COPY --from=0 /go/bin/hashthing /hashthing
-# VOLUME /tmp
 ENTRYPOINT ["/hashthing"]
