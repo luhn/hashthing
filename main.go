@@ -53,6 +53,11 @@ func main() {
 			fmt.Println("- ", replacement.path)
 		}
 	}
+	// Create dst directory, if not exists
+	err := os.MkdirAll(dst, 0755)
+	if err != nil {
+		panic(err)
+	}
 	processed := processFiles(src, dst, files)
 	writeManifest(*manifest, processed)
 }
@@ -171,7 +176,10 @@ func processFile(src string, dst string, file File, filemap map[string]string) s
 	reader := bufio.NewReader(srcFile)
 
 	// Open temp file for writing
-	dstFile, err := ioutil.TempFile("", "hashthing")
+	// We're creating a temp file in the dst directory, rather than the default
+	// temp directory, because the dst directory may be on another different
+	// volume than the temp directory.  This would break os.Rename below.
+	dstFile, err := ioutil.TempFile(dst, "hashthing")
 	if err != nil {
 		panic(err)
 	}
