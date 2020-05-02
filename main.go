@@ -107,7 +107,7 @@ func parseFiles(src string, paths []string) []File {
 		} else {
 			replacements = []Replacement{}
 		}
-		files = append(files, File{relpath, "", replacements})
+		files = append(files, File{relpath, replacements})
 	}
 	return files
 }
@@ -267,7 +267,6 @@ func writeManifest(path string, filemap map[string]string) {
 
 type File struct {
 	path         string
-	hashedPath   string
 	replacements []Replacement
 }
 
