@@ -49,12 +49,6 @@ func main() {
 	filepaths := walk(src)
 	files := parseFiles(src, filepaths)
 	files = validateReplacements(files)
-	for _, file := range files {
-		fmt.Println(file.path)
-		for _, replacement := range file.replacements {
-			fmt.Println("- ", replacement.path)
-		}
-	}
 	// Create dst directory, if not exists
 	err := os.MkdirAll(dst, 0755)
 	if err != nil {
@@ -95,7 +89,6 @@ func walk(src string) []string {
 func parseFiles(src string, paths []string) []File {
 	files := []File{}
 	for _, path := range paths {
-		// Add to queue
 		relpath, err := filepath.Rel(src, path)
 		if err != nil {
 			panic(err)
@@ -165,11 +158,8 @@ func isReady(file File, processed map[string]string) bool {
 }
 
 func processFile(src string, dst string, file File, filemap map[string]string) string {
-	// Read the file
-	fmt.Println("Processing %s", file.path)
-	dir, fn := filepath.Split(file.path)
-
 	// Open file for reading
+	dir, fn := filepath.Split(file.path)
 	srcFile, err := os.Open(filepath.Join(src, file.path))
 	if err != nil {
 		panic(err)
@@ -187,16 +177,13 @@ func processFile(src string, dst string, file File, filemap map[string]string) s
 	}
 	dstBuffer := bufio.NewWriter(dstFile)
 
-	// Create hash
+	// Fork output to both MD5 hash and dst file
 	hash := md5.New()
 	writer := io.MultiWriter(hash, dstBuffer)
 
 	performReplacements(writer, reader, file, filemap)
 
-	err = srcFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	// Close dst file
 	err = dstBuffer.Flush()
 	if err != nil {
 		panic(err)
@@ -206,10 +193,8 @@ func processFile(src string, dst string, file File, filemap map[string]string) s
 		panic(err)
 	}
 
-	// Create hashed filename
-	hashedPath := filepath.Join(dir, createHashedFilename(fn, hash.Sum(nil)))
-
 	// Move to final home
+	hashedPath := filepath.Join(dir, createHashedFilename(fn, hash.Sum(nil)))
 	dstPath := filepath.Join(dst, hashedPath)
 	err = os.MkdirAll(filepath.Dir(dstPath), 0755)
 	if err != nil {
@@ -224,14 +209,18 @@ func performReplacements(writer io.Writer, reader io.Reader, file File, filemap 
 	dir, _ := filepath.Split(file.path)
 	lastPosition := 0
 	for _, replacement := range file.replacements {
+		// Copy file verbatim until next replacement
 		toRead := replacement.position - lastPosition
 		io.CopyN(writer, reader, int64(toRead))
+
+		// Discard path from source
 		_, err := reader.Read(make([]byte, replacement.length))
 		if err != nil {
 			panic(err)
 		}
 		lastPosition = replacement.position + replacement.length
 
+		// Lookup replacement path and write to file
 		refFile := filemap[replacement.path]
 		refPath, err := filepath.Rel(dir, refFile)
 		if err != nil {
@@ -242,6 +231,8 @@ func performReplacements(writer io.Writer, reader io.Reader, file File, filemap 
 			panic(err)
 		}
 	}
+
+	// Done with replacements, copy rest of file.
 	_, err := io.Copy(writer, reader)
 	if err != nil {
 		panic(err)
