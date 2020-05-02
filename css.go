@@ -1,11 +1,11 @@
 package main
 
 import (
-	"strings"
-	"os"
-	"bytes"
-	"path/filepath"
 	"bufio"
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 // https://www.w3.org/TR/CSS1/#url
@@ -25,12 +25,12 @@ func processCSS(fullpath string, path string) []Replacement {
 	pos := 0
 	replacements := []Replacement{}
 
-	mainLoop:
+mainLoop:
 	for {
 		for {
 			b, err := reader.Peek(4)
 			if err != nil {
-				if  err.Error() == "EOF" {
+				if err.Error() == "EOF" {
 					break mainLoop
 				} else {
 					panic(err)
@@ -42,8 +42,8 @@ func processCSS(fullpath string, path string) []Replacement {
 					relpath := filepath.Join(dir, rawpath)
 					replacements = append(replacements, Replacement{
 						position: pos + offset,
-						length: len(rawpath),
-						path: relpath,
+						length:   len(rawpath),
+						path:     relpath,
 					})
 					pos += offset + len(path)
 				}

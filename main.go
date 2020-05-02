@@ -3,15 +3,15 @@ package main
 import (
 	"bufio"
 	// "bytes"
-	"flag"
-	"fmt"
-	"strings"
-	"os"
-	"path/filepath"
-	"io"
-	"io/ioutil"
 	"crypto/md5"
 	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -23,17 +23,18 @@ func main() {
 	flag.Usage = func() {
 		fmt.Print(
 			"Usage: hashthing [options] src dst\n\n" +
-			"Hashthing will recursively iterate through `src`, append a hash of " +
-			"the file to the filename, and copy to `dst`.  Relative paths in CSS " +
-			"documents will be rewritten to include the hash.\n\n" +
-			"`src` and `dst` should be directories.  If `dst` does not exist, it " +
-			"will be created.\n\n" +
-			"For more information, visit https://github.com/luhn/hashthing\n\n")
+				"Hashthing will recursively iterate through `src`, append a hash of " +
+				"the file to the filename, and copy to `dst`.  Relative paths in " +
+				"CSS documents will be rewritten to include the hash.\n\n" +
+				"`src` and `dst` should be directories.  If `dst` does not exist, " +
+				"it will be created.\n\n" +
+				"For more information, visit https://github.com/luhn/hashthing\n\n")
 		fmt.Println("Options:")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 
+	// Make sure we have two positional arguments.
 	if flag.NArg() < 2 {
 		fmt.Println("Must include source and destination directories.")
 		os.Exit(1)
@@ -44,6 +45,7 @@ func main() {
 	src := flag.Arg(0)
 	dst := flag.Arg(1)
 
+	// Run the actual program
 	filepaths := walk(src)
 	files := parseFiles(src, filepaths)
 	files = validateReplacements(files)
@@ -249,9 +251,9 @@ func performReplacements(writer io.Writer, reader io.Reader, file File, filemap 
 func createHashedFilename(fn string, hash []byte) string {
 	hashString := fmt.Sprintf("%x", hash)[:8]
 	fnSplit := strings.Split(fn, ".")
-	newFn := make([]string, len(fnSplit) - 1, len(fnSplit) + 1)
-	copy(newFn, fnSplit[:len(fnSplit) - 1])
-	newFn = append(newFn, hashString, fnSplit[len(fnSplit) - 1])
+	newFn := make([]string, len(fnSplit)-1, len(fnSplit)+1)
+	copy(newFn, fnSplit[:len(fnSplit)-1])
+	newFn = append(newFn, hashString, fnSplit[len(fnSplit)-1])
 	return strings.Join(newFn, ".")
 }
 
@@ -264,13 +266,13 @@ func writeManifest(path string, filemap map[string]string) {
 }
 
 type File struct {
-	path string
-	hashedPath string
+	path         string
+	hashedPath   string
 	replacements []Replacement
 }
 
 type Replacement struct {
 	position int
-	length int
-	path string
+	length   int
+	path     string
 }
