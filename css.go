@@ -8,10 +8,15 @@ import (
 	"strings"
 )
 
+// Perform simple parsing on the CSS file at `fullpath` to discover any file
+// references, i.e. `url()`.  Parsing rules are derived from the CSS1 spec:
 // https://www.w3.org/TR/CSS1/#url
-
-// PATTERN = regexp.MustCompile("url")
-
+//
+// `path` is the path of the CSS file relative to the source directory.  This
+// is used to determine the path of referenced files relative to the source
+// directory.
+//
+// Only relative paths are kept, absolute paths and URLs are discarded.
 func processCSS(fullpath string, path string) []Replacement {
 	dir := filepath.Dir(path)
 	fh, err := os.Open(fullpath)
@@ -21,13 +26,13 @@ func processCSS(fullpath string, path string) []Replacement {
 	defer fh.Close()
 	reader := bufio.NewReader(fh)
 
-	// Scan
-	pos := 0
+	pos := 0 // Our current position in the file.
 	replacements := []Replacement{}
 
 mainLoop:
 	for {
 		for {
+			// Look ahead four bytes for `url(`
 			b, err := reader.Peek(4)
 			if err != nil {
 				if err.Error() == "EOF" {
@@ -37,6 +42,7 @@ mainLoop:
 				}
 			}
 			if bytes.Compare(b, []byte("url(")) == 0 {
+				// When `url(` is hit, read the path and add a Replacement
 				offset, rawpath := readURL(reader)
 				if isValidPath(rawpath) {
 					relpath := filepath.Join(dir, rawpath)
@@ -48,6 +54,7 @@ mainLoop:
 					pos += offset + len(path)
 				}
 			} else {
+				// Move forward to the next space.
 				reader.Discard(1)
 				pos += 1
 			}
@@ -56,10 +63,10 @@ mainLoop:
 	return replacements
 }
 
+// Called once `url(` is hit.  Discards all superfluous characters and returns
+// the path.
 func readURL(reader *bufio.Reader) (int, string) {
-	// Returns offset, path
-
-	// Start by discarding "url("
+	// Discard `url(`
 	reader.Discard(4)
 	offset := 4
 
@@ -78,6 +85,7 @@ func readURL(reader *bufio.Reader) (int, string) {
 	return offset, string(path)
 }
 
+// Determine if a path is valid.  Absolute paths and URLs are invalid.
 func isValidPath(path string) bool {
 	// No absolute paths
 	if path[0:1] == "/" {
@@ -91,8 +99,9 @@ func isValidPath(path string) bool {
 	return true
 }
 
-// Util functions for parsing file
+/* Util functions for parsing file */
 
+// Return true if byte array `haystack` contains byte `needle`.
 func byteInArray(needle byte, haystack []byte) bool {
 	for _, b := range haystack {
 		if b == needle {
@@ -102,6 +111,8 @@ func byteInArray(needle byte, haystack []byte) bool {
 	return false
 }
 
+// Read bytes from the reader while the given condition holds.  Returns all
+// read bytes.
 func readWhile(reader *bufio.Reader, cond func(byte) bool) []byte {
 	var output []byte
 	for {

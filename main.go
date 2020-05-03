@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	// "bytes"
 	"crypto/md5"
 	"encoding/json"
 	"flag"
@@ -58,6 +57,8 @@ func main() {
 	writeManifest(*manifest, processed)
 }
 
+// Recursively iterate through the given directory and return a list of file
+// paths.  Dotted files are ignored.
 func walk(src string) []string {
 	files := []string{}
 	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
@@ -86,6 +87,9 @@ func walk(src string) []string {
 	return files
 }
 
+// Iterate through the given files and return a list of File structs.
+// Supported files will be parsed to determine replacements.  (Currently just
+// CSS.)
 func parseFiles(src string, paths []string) []File {
 	files := []File{}
 	for _, path := range paths {
@@ -105,6 +109,8 @@ func parseFiles(src string, paths []string) []File {
 	return files
 }
 
+// Iterate through the given files and remove any replacements that reference
+// non-existant files.
 func validateReplacements(files []File) []File {
 	// Construct a set of file paths
 	paths := make(map[string]bool)
@@ -133,20 +139,24 @@ func validateReplacements(files []File) []File {
 	return files
 }
 
+// Iterate through the given files and run them through the processFile
+// function.  Returns a map of source paths to destination paths.
 func processFiles(src string, dst string, files []File) map[string]string {
 	processed := make(map[string]string)
 	for len(files) > 0 {
 		var file File
-		file, files = files[len(files)-1], files[:len(files)-1]
+		file, files = files[len(files)-1], files[:len(files)-1] // Pop queue
 		if isReady(file, processed) {
 			processed[file.path] = processFile(src, dst, file, processed)
 		} else {
-			files = append(files, file)
+			files = append(files, file) // Push queue
 		}
 	}
 	return processed
 }
 
+// Indicates if the given file is ready for processing.  This means that all
+// referenced files have been processed.
 func isReady(file File, processed map[string]string) bool {
 	for _, replacement := range file.replacements {
 		_, ok := processed[replacement.path]
@@ -157,6 +167,8 @@ func isReady(file File, processed map[string]string) bool {
 	return true
 }
 
+// Read a source file, replace the paths, and write out to destination file.
+// File contents are hashed and added to the destination file name.
 func processFile(src string, dst string, file File, filemap map[string]string) string {
 	// Open file for reading
 	dir, fn := filepath.Split(file.path)
@@ -205,6 +217,7 @@ func processFile(src string, dst string, file File, filemap map[string]string) s
 	return hashedPath
 }
 
+// Copy the contents from the reader to the writer, replacing file paths.
 func performReplacements(writer io.Writer, reader io.Reader, file File, filemap map[string]string) {
 	dir, _ := filepath.Split(file.path)
 	lastPosition := 0
@@ -239,6 +252,8 @@ func performReplacements(writer io.Writer, reader io.Reader, file File, filemap 
 	}
 }
 
+// Create a file name that includes the given hash.  For example,
+// `dir/main.css` might be transformed into `dir/main.8593fe6a.css`.
 func createHashedFilename(fn string, hash []byte) string {
 	hashString := fmt.Sprintf("%x", hash)[:8]
 	fnSplit := strings.Split(fn, ".")
@@ -248,6 +263,7 @@ func createHashedFilename(fn string, hash []byte) string {
 	return strings.Join(newFn, ".")
 }
 
+// Write out a JSON file mapping source paths to destination paths.
 func writeManifest(path string, filemap map[string]string) {
 	contents, err := json.MarshalIndent(filemap, "", "  ")
 	if err != nil {
@@ -256,11 +272,13 @@ func writeManifest(path string, filemap map[string]string) {
 	ioutil.WriteFile(path, contents, 0644)
 }
 
+// Represents a source file and the list of paths pending replacement.
 type File struct {
 	path         string
 	replacements []Replacement
 }
 
+// Represents a path in the source file pending replacement.
 type Replacement struct {
 	position int
 	length   int
