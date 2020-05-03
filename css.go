@@ -67,7 +67,11 @@ mainLoop:
 // the path.
 func readURL(reader *bufio.Reader) (int, string) {
 	// Discard `url(`
-	reader.Discard(4)
+	start := make([]byte, 4)
+	reader.Read(start)
+	if string(start) != "url(" {
+		panic("readURL called at the wrong place!")
+	}
 	offset := 4
 
 	// Discard starting characters
