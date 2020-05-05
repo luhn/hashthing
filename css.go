@@ -51,7 +51,7 @@ mainLoop:
 						length:   len(rawpath),
 						path:     relpath,
 					})
-					pos += offset + len(path)
+					pos += offset + len(rawpath)
 				}
 			} else {
 				// Move forward to the next space.
