@@ -172,7 +172,6 @@ func isReady(file File, processed map[string]string) bool {
 // File contents are hashed and added to the destination file name.
 func processFile(src string, dst string, file File, filemap map[string]string) string {
 	// Open file for reading
-	dir, fn := filepath.Split(file.path)
 	srcFile, err := os.Open(filepath.Join(src, file.path))
 	if err != nil {
 		panic(err)
@@ -207,7 +206,7 @@ func processFile(src string, dst string, file File, filemap map[string]string) s
 	}
 
 	// Move to final home
-	hashedPath := filepath.Join(dir, createHashedFilename(fn, hash.Sum(nil)))
+	hashedPath := createHashedFilename(file.path, hash.Sum(nil))
 	dstPath := filepath.Join(dst, hashedPath)
 	err = os.MkdirAll(filepath.Dir(dstPath), 0755)
 	if err != nil {
