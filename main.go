@@ -58,7 +58,7 @@ func main() {
 }
 
 // Recursively iterate through the given directory and return a list of file
-// paths.  Dotted files are ignored.
+// paths relative to the given directory.  Dotted files are ignored.
 func walk(src string) []string {
 	files := []string{}
 	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
@@ -81,7 +81,11 @@ func walk(src string) []string {
 			return nil
 		}
 
-		files = append(files, path)
+		relpath, err := filepath.Rel(src, path)
+		if err != nil {
+			panic(err)
+		}
+		files = append(files, relpath)
 		return nil
 	})
 	return files
@@ -93,18 +97,15 @@ func walk(src string) []string {
 func parseFiles(src string, paths []string) []File {
 	files := []File{}
 	for _, path := range paths {
-		relpath, err := filepath.Rel(src, path)
-		if err != nil {
-			panic(err)
-		}
+		fullpath := filepath.Join(src, path)
 		ext := filepath.Ext(path)
 		var replacements []Replacement
 		if ext == ".css" {
-			replacements = processCSS(path, relpath)
+			replacements = processCSS(fullpath, path)
 		} else {
 			replacements = []Replacement{}
 		}
-		files = append(files, File{relpath, replacements})
+		files = append(files, File{path, replacements})
 	}
 	return files
 }
