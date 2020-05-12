@@ -146,7 +146,7 @@ func processFiles(src string, dst string, files []File) map[string]string {
 	processed := make(map[string]string)
 	for len(files) > 0 {
 		var file File
-		file, files = files[len(files)-1], files[:len(files)-1] // Pop queue
+		file, files = files[0], files[1:] // Pop queue
 		if isReady(file, processed) {
 			processed[file.path] = processFile(src, dst, file, processed)
 		} else {
