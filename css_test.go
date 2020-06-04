@@ -55,10 +55,17 @@ func TestReadURLExtraChars(t *testing.T) {
 	assert.Equal(t, "\"morestuff", string(remaining))
 }
 
-func TestIsValidPath(t *testing.T) {
-	assert.Equal(t, true, isValidPath("foo/bar.jpg"))
-	assert.Equal(t, false, isValidPath("/foo/bar.jpg"))
-	assert.Equal(t, false, isValidPath("http://example.com/foo/bar.jpg"))
+func TestMakeRelPath(t *testing.T) {
+	path, valid := makeRelPath("foo/", "foo/bar.jpg")
+	assert.Equal(t, true, valid)
+	assert.Equal(t, "foo/foo/bar.jpg", path)
+	path, valid = makeRelPath("foo/", "/foo/bar.jpg")
+	assert.Equal(t, false, valid)
+	path, valid = makeRelPath("foo/", "http://example.com/foo/bar.jpg")
+	assert.Equal(t, false, valid)
+	path, valid = makeRelPath("foo/", "foo/bar%20.jpg?test=foo#fizz=buzz")
+	assert.Equal(t, true, valid)
+	assert.Equal(t, "foo/foo/bar .jpg", path)
 }
 
 func TestByteInArray(t *testing.T) {

@@ -3,9 +3,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // Perform simple parsing on the CSS file at `fullpath` to discover any file
@@ -44,8 +45,8 @@ mainLoop:
 			if bytes.Compare(b, []byte("url(")) == 0 {
 				// When `url(` is hit, read the path and add a Replacement
 				offset, rawpath := readURL(reader)
-				if isValidPath(rawpath) {
-					relpath := filepath.Join(dir, rawpath)
+				relpath, valid := makeRelPath(dir, rawpath)
+				if valid {
 					replacements = append(replacements, Replacement{
 						position: pos + offset,
 						length:   len(rawpath),
@@ -89,18 +90,22 @@ func readURL(reader *bufio.Reader) (int, string) {
 	return offset, string(path)
 }
 
-// Determine if a path is valid.  Absolute paths and URLs are invalid.
-func isValidPath(path string) bool {
-	// No absolute paths
-	if path[0:1] == "/" {
-		return false
+func makeRelPath(dir string, rawpath string) (string, bool) {
+	url, err := url.Parse(rawpath)
+	if err != nil {
+		fmt.Printf(
+			"Warning: Could not parse path `%s`\n",
+			rawpath,
+		)
+		return "", false
 	}
-	// No URLs
-	if strings.Contains(path, "://") {
-		return false
+	if url.Scheme != "" {
+		return "", false
 	}
-	// Otherwise okay
-	return true
+	if url.Path[0:1] == "/" {
+		return "", false
+	}
+	return filepath.Join(dir, url.Path), true
 }
 
 /* Util functions for parsing file */
