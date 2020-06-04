@@ -14,8 +14,11 @@ func TestProcessCSS(t *testing.T) {
 body {
 	background: url("foo.jpg");
 }
+header {
+	background: url("http://example.com/header.jpg");
+}
 div {
-	background: url("../fizz/buzz.jpg");
+	background: url(../fizz/buzz.jpg);
 }
 `
 	file, _ := ioutil.TempFile("", "hashthing")
@@ -59,6 +62,9 @@ func TestMakeRelPath(t *testing.T) {
 	path, valid := makeRelPath("foo/", "foo/bar.jpg")
 	assert.Equal(t, true, valid)
 	assert.Equal(t, "foo/foo/bar.jpg", path)
+	path, valid = makeRelPath("foo/", "../foo/bar.jpg")
+	assert.Equal(t, true, valid)
+	assert.Equal(t, "foo/bar.jpg", path)
 	path, valid = makeRelPath("foo/", "/foo/bar.jpg")
 	assert.Equal(t, false, valid)
 	path, valid = makeRelPath("foo/", "http://example.com/foo/bar.jpg")
